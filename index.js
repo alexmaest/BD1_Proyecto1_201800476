@@ -3,7 +3,7 @@ const express = require("express");
 const fs = require('fs');
 const csv = require('csv-parser');
 const app = express();
-const { exec } = require('child_process');
+
 const cssStyles = `
   body {
     background-color: #001029;
@@ -12,10 +12,17 @@ const cssStyles = `
   h1 {
     font-family: Arial, sans-serif;
     margin-top: 50px;
-    margin-bottom: 50px;
+    margin-bottom: 10px;
     font-size: 32px;
     font-weight: bold;
     color: white;
+  }
+  h3 {
+    font-family: Arial, sans-serif;
+    margin-bottom: 10px;
+    font-size: 40px;
+    font-weight: bold;
+    color: #c76700;
   }
   table {
     text-align: center;
@@ -37,10 +44,6 @@ const cssStyles = `
     color: white;
   }
 `;
-const { Parser } = require('csv-parse');
-const { pipeline } = require('stream');
-const util = require('util');
-const pipelineAsync = util.promisify(pipeline);
 
 app.get("/cargarTemporal", async (req, res) => {
   let conn;
@@ -665,6 +668,7 @@ app.get("/consulta1", async (req, res) => {
       INNER JOIN hospital h ON dh.id_hospital = h.id_hospital
       INNER JOIN victima v ON dh.id_victima = v.id_victima
       GROUP BY h.id_hospital, h.nombre, h.direccion
+      ORDER BY h.nombre ASC
     `);
     let htmlTable = "<table><tr><th>Nombre</th><th>Dirección</th><th>Víctimas fallecidas</th></tr>";
     for (let row of result.rows) {
@@ -681,7 +685,8 @@ app.get("/consulta1", async (req, res) => {
         <style>${cssStyles}</style>
       </head>
       <body>
-        <h1>HOSPITALES CON VICTIMAS FALLECIDAS</h1>
+        <h1>FALLECIDOS EN CADA HOSPITAL</h1>
+        <h3>${result.rows.length}</h3>
         ${htmlTable}
       </body>
     </html>
@@ -710,11 +715,12 @@ app.get("/consulta2", async (req, res) => {
       connectString: "localhost:1521/XE",
     });
     const result = await conn.execute(`
-      SELECT DISTINCT v.nombre, v.apellidos
-      FROM victima v
-      INNER JOIN victima_efectividad ve ON v.id_victima = ve.id_victima
-      INNER JOIN tratamiento t ON ve.id_tratamiento = t.id_tratamiento
-      WHERE t.descripcion = 'Transfusiones de sangre' AND ve.efectividad_victima > 5
+    SELECT DISTINCT v.nombre, v.apellidos
+    FROM victima v
+    INNER JOIN victima_efectividad ve ON v.id_victima = ve.id_victima
+    INNER JOIN tratamiento t ON ve.id_tratamiento = t.id_tratamiento
+    WHERE t.descripcion = 'Transfusiones de sangre' AND ve.efectividad_victima > 5
+    ORDER BY v.nombre ASC
     `);
     let htmlTable = "<table><tr><th>Nombre</th><th>Apellidos</th></tr>";
     for (let row of result.rows) {
@@ -731,6 +737,7 @@ app.get("/consulta2", async (req, res) => {
       </head>
       <body>
         <h1>VICTIMAS DE TRANSFUCIÓN DE SANGRE CON EFECTIVIDAD > 5</h1>
+        <h3>${result.rows.length}</h3>
         ${htmlTable}
       </body>
     </html>
@@ -765,6 +772,7 @@ app.get("/consulta3", async (req, res) => {
       WHERE v.estado = 'Muerte' OR v.fecha_muerte IS NOT NULL
       GROUP BY v.id_victima, v.nombre, v.apellidos, v.direccion
       HAVING COUNT(dc.id_asociado) > 3
+      ORDER BY v.nombre ASC
     `);
     let htmlTable = "<table><tr><th>Nombre</th><th>Apellidos</th><th>Direccion</th></tr>";
     for (let row of result.rows) {
@@ -781,6 +789,7 @@ app.get("/consulta3", async (req, res) => {
       </head>
       <body>
         <h1>VICTIMAS FALLECIDAS CON MÁS DE 3 ASOCIADOS</h1>
+        <h3>${result.rows.length}</h3>
         ${htmlTable}
       </body>
     </html>
@@ -833,6 +842,7 @@ app.get("/consulta4", async (req, res) => {
       </head>
       <body>
         <h1>VICTIMAS SUSPENDIDAS CON UN CONTACTO TIPO BESO > 2 DE SUS ASOCIADOS</h1>
+        <h3>${result.rows.length}</h3>
         ${htmlTable}
       </body>
     </html>
@@ -867,7 +877,7 @@ app.get("/consulta5", async (req, res) => {
         INNER JOIN victima_efectividad ve ON v.id_victima = ve.id_victima
         INNER JOIN tratamiento t ON ve.id_tratamiento = t.id_tratamiento AND t.descripcion = 'Oxigeno'
         GROUP BY v.id_victima, v.nombre, v.apellidos, v.direccion
-        ORDER BY COUNT(*) DESC
+        ORDER BY COUNT(*) DESC, v.nombre ASC
       ) WHERE ROWNUM <= 5
     `);
     let htmlTable = "<table><tr><th>Nombre</th><th>Apellidos</th><th>Dirección</th><th>Cantidad</th></tr>";
@@ -885,6 +895,7 @@ app.get("/consulta5", async (req, res) => {
       </head>
       <body>
         <h1>TOP 5 VICTIMAS CON MÁS TRATAMIENTOS DE OXIGENO</h1>
+        <h3>${result.rows.length}</h3>
         ${htmlTable}
       </body>
     </html>
@@ -913,13 +924,14 @@ app.get("/consulta6", async (req, res) => {
       connectString: "localhost:1521/XE",
     });
     const result = await conn.execute(`
-      SELECT DISTINCT v.nombre, v.apellidos, v.fecha_muerte
-      FROM victima v
-      INNER JOIN ubicacion u ON v.id_victima = u.id_victima
-      INNER JOIN victima_efectividad ve ON v.id_victima = ve.id_victima
-      INNER JOIN tratamiento t ON ve.id_tratamiento = t.id_tratamiento
-      WHERE u.direccion = '1987 Delphine Well'
-      AND t.descripcion = 'Manejo de la presion arterial'
+    SELECT DISTINCT v.nombre, v.apellidos, v.fecha_muerte
+    FROM victima v
+    INNER JOIN ubicacion u ON v.id_victima = u.id_victima
+    INNER JOIN victima_efectividad ve ON v.id_victima = ve.id_victima
+    INNER JOIN tratamiento t ON ve.id_tratamiento = t.id_tratamiento
+    WHERE u.direccion = '1987 Delphine Well'
+    AND t.descripcion = 'Manejo de la presion arterial'
+    ORDER BY v.nombre ASC    
     `);
     let htmlTable = "<table><tr><th>Nombre</th><th>Apellidos</th><th>Fecha de fallecimiento</th></tr>";
     for (let row of result.rows) {
@@ -936,6 +948,7 @@ app.get("/consulta6", async (req, res) => {
       </head>
       <body>
         <h1>VICTIMAS EN DELPHINE WELL CON PRESIÓN ARTERIAL</h1>
+        <h3>${result.rows.length}</h3>
         ${htmlTable}
       </body>
     </html>
@@ -974,19 +987,9 @@ app.get("/consulta7", async (req, res) => {
         HAVING COUNT(ve.id_tratamiento) = 2
     )
     GROUP BY v.id_victima, v.nombre, v.apellidos, v.direccion
-    HAVING COUNT(dc.id_asociado) <= 2
+    HAVING COUNT(dc.id_asociado) < 2
+    ORDER BY v.nombre ASC
     `);
-    //Consulta que muestra las victimas con 2 tratamientos
-    /*const result = await conn.execute(`
-    SELECT v.nombre, v.apellidos, v.direccion
-    FROM victima v
-    WHERE v.id_victima IN (
-        SELECT ve.id_victima
-        FROM victima_efectividad ve
-        GROUP BY ve.id_victima
-        HAVING COUNT(ve.id_tratamiento) = 2
-    )
-    `);*/
     let htmlTable = "<table><th>Nombre</th><th>Apellidos</th><th>Direccion</th></tr>";
     for (let row of result.rows) {
       htmlTable += `<tr><td>${row[0]}</td><td>${row[1]}</td><td>${row[2]}</td></tr>`;
@@ -1002,6 +1005,7 @@ app.get("/consulta7", async (req, res) => {
       </head>
       <body>
         <h1>VICTIMAS CON MENOS DE 2 ASOCIADOS Y CON 2 TRATAMIENTOS</h1>
+        <h3>${result.rows.length}</h3>
         ${htmlTable}
       </body>
     </html>
@@ -1063,6 +1067,7 @@ app.get("/consulta8", async (req, res) => {
       </head>
       <body>
         <h1>TOP DE VICTIMAS CON MÁS Y MENOS TRATAMIENTOS</h1>
+        <h3>${result.rows.length}</h3>
         ${htmlTable}
       </body>
     </html>
@@ -1096,6 +1101,7 @@ app.get("/consulta9", async (req, res) => {
     FROM hospital h
     JOIN detalle_hospital dh ON h.id_hospital = dh.id_hospital
     GROUP BY h.id_hospital, h.nombre, h.direccion
+    ORDER BY porcentaje_victimas DESC
     `);
     let htmlTable = "<table><tr><th>Nombre</th><th>Dirección</th><th>Cantidad</th><th>Porcentaje (%)</th></tr>";
     for (let row of result.rows) {
@@ -1112,6 +1118,7 @@ app.get("/consulta9", async (req, res) => {
       </head>
       <body>
         <h1>PORCENTAJE DE VICTIMAS DE CADA HOSPITAL</h1>
+        <h3>${result.rows.length}</h3>
         ${htmlTable}
       </body>
     </html>
@@ -1160,6 +1167,7 @@ app.get("/consulta10", async (req, res) => {
       GROUP BY h.id_hospital, h.nombre, h.direccion, c.tipo
     )
     WHERE rn = 1
+    ORDER BY porcentaje DESC
     `);
     let htmlTable = "<table><tr><th>Nombre</th><th>Direccion</th><th>Tipo</th><th>Porcentaje (%)</th></tr>";
     for (let row of result.rows) {
@@ -1176,6 +1184,7 @@ app.get("/consulta10", async (req, res) => {
       </head>
       <body>
         <h1>CONTACTO FISICO MÁS COMÚN POR HOSPITAL</h1>
+        <h3>${result.rows.length}</h3>
         ${htmlTable}
       </body>
     </html>
