@@ -977,18 +977,14 @@ app.get("/consulta7", async (req, res) => {
       connectString: "localhost:1521/XE",
     });
     const result = await conn.execute(`
-    SELECT v.nombre, v.apellidos, v.direccion AS cantidad_asociados
+    SELECT v.nombre, v.apellidos, v.direccion
     FROM victima v
-    LEFT JOIN detalle_conocido dc ON v.id_victima = dc.id_victima
     WHERE v.id_victima IN (
         SELECT ve.id_victima
         FROM victima_efectividad ve
         GROUP BY ve.id_victima
         HAVING COUNT(ve.id_tratamiento) = 2
     )
-    GROUP BY v.id_victima, v.nombre, v.apellidos, v.direccion
-    HAVING COUNT(dc.id_asociado) < 2
-    ORDER BY v.nombre ASC
     `);
     let htmlTable = "<table><th>Nombre</th><th>Apellidos</th><th>Direccion</th></tr>";
     for (let row of result.rows) {
